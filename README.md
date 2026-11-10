@@ -82,3 +82,6 @@ py tools/export_web.py                    # regenerates web/yard_data.js
 
 ## Not in the repo
 `build/` (the built .blend files), `renders/` images and the `.mp4` backup videos are generated, so they are git-ignored. Rebuild them with the commands above.
+
+## License
+MIT, see [LICENSE](LICENSE). All plant data is simulated and illustrative.
