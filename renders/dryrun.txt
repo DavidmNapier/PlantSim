@@ -1,0 +1,9 @@
+ch1:  24.0 fps, frames 1->145 (still in ch1), camera Cam_Ch1
+ch2:  23.8 fps, frames 721->864 (still in ch2), camera Cam_Ch2
+ch3 live tweak at 50.8 min: alerts=1 (C3 underflow Al2O3 2.95%: slimes bypass (pulsing)); flagged wagons 16 -> 28
+ch3:  23.3 fps, frames 1801->1941 (still in ch3), camera Cam_Ch3
+ch4:  23.8 fps, frames 3961->4104 (still in ch4), camera Cam_Ch4
+ch5:  23.8 fps, frames 5401->5544 (still in ch5), camera Cam_Ch5
+ch6:  23.8 fps, frames 8281->8424 (still in ch6), camera Cam_Ch6
+ch7:  23.8 fps, frames 9721->9864 (still in ch7), camera Cam_Ch7
+reset: frame 1, events 0

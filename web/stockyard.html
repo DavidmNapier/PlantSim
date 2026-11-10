@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stockyard Slices</title>
+<style>
+:root {
+  --bg: #f4f2ee; --panel: #ffffff; --ink: #1f2328; --muted: #626a73; --line: #d9d5cc;
+  --accent: #b5541c; --accent-ink: #ffffff; --flag: #d1242f; --ground: #c9a888; --sky: #e9eef2;
+  --machine: #e0a400; --steel: #6b7280; --sel: #1f6feb;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171a; --panel: #1e2125; --ink: #e8eaed; --muted: #9aa3ad; --line: #33383f;
+    --accent: #e07a3c; --accent-ink: #15171a; --flag: #ff6b6b; --ground: #5a4636; --sky: #1b2229;
+    --machine: #f2b400; --steel: #9aa3ad; --sel: #58a6ff;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171a; --panel: #1e2125; --ink: #e8eaed; --muted: #9aa3ad; --line: #33383f;
+  --accent: #e07a3c; --accent-ink: #15171a; --flag: #ff6b6b; --ground: #5a4636; --sky: #1b2229;
+  --machine: #f2b400; --steel: #9aa3ad; --sel: #58a6ff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { padding: 18px 16px 6px; max-width: 1400px; margin: 0 auto; }
+h1 { font-size: 20px; margin: 0 0 2px; }
+header p { margin: 0; color: var(--muted); }
+main { max-width: 1400px; margin: 0 auto; padding: 8px 16px 32px; display: grid; gap: 12px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; min-width: 0; }
+.panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 8px;
+  display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.panel h2 span { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.controls label { color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+button, select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 7px; padding: 5px 10px; cursor: pointer; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); min-width: 84px; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--sel); outline-offset: 1px; }
+.time { flex: 1 1 320px; display: flex; gap: 10px; align-items: center; min-width: 0; }
+.time input { flex: 1; min-width: 0; accent-color: var(--accent); }
+.clock { font-variant-numeric: tabular-nums; min-width: 230px; }
+.clock b { font-size: 16px; }
+.jumps { display: flex; flex-wrap: wrap; gap: 6px; }
+canvas { display: block; width: 100%; }
+.row2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; }
+@media (max-width: 860px) { .row2 { grid-template-columns: 1fr; } .clock { min-width: 0; } }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.kpi { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.kpi .k { color: var(--muted); font-size: 12px; }
+.kpi .v { font-size: 20px; font-variant-numeric: tabular-nums; }
+.kpi .s { color: var(--muted); font-size: 12px; }
+.legend { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; margin-top: 10px; flex-wrap: wrap; }
+.ramp { height: 10px; width: 160px; border-radius: 3px; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; }
+#detail { font-size: 13px; color: var(--ink); min-height: 3em; }
+#detail table { border-collapse: collapse; margin-top: 6px; font-variant-numeric: tabular-nums; }
+#detail td { padding: 2px 10px 2px 0; }
+#tip { position: fixed; pointer-events: none; background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.18); display: none;
+  max-width: 280px; z-index: 5; font-variant-numeric: tabular-nums; }
+.hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+.flagtxt { color: var(--flag); font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Stockyard Slices</h1>
+  <p>The chevron stockpile, stacker, bucket wheel reclaimer and train from the PlantSim run, drawn as slices of material. Every block is real sim tonnage and grade.</p>
+</header>
+<main>
+  <section class="panel" aria-label="Playback controls">
+    <div class="controls">
+      <button id="play" class="primary" aria-label="Play or pause">▶ Play</button>
+      <div class="time">
+        <input id="time" type="range" min="0" max="170" step="0.05" value="0" aria-label="Sim minute">
+      </div>
+      <div class="clock" id="clock"></div>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <label>Speed <select id="speed">
+        <option value="0.5">0.5 min/s</option><option value="1">1 min/s</option><option value="2" selected>2 min/s</option>
+        <option value="5">5 min/s</option><option value="10">10 min/s</option></select></label>
+      <label>Colour by <select id="metric"></select></label>
+      <label><input type="checkbox" id="fault"> Outline material made during a cyclone fault</label>
+      <div class="jumps">
+        <button data-jump="0">Start</button>
+        <button data-jump="62">Pulsing fault</button>
+        <button data-jump="119.9">Pile complete</button>
+        <button data-jump="124.9">Reclaim starts</button>
+        <button data-jump="170">End</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" aria-label="Feed to the stacker">
+    <h2>Feed to the stacker <span>product parcels by minute, fault windows shaded</span></h2>
+    <canvas id="feed" height="54"></canvas>
+  </section>
+
+  <section class="panel" aria-label="Stockpile long section">
+    <h2>Stockpile long section <span id="secinfo"></span></h2>
+    <canvas id="pile" height="330"></canvas>
+    <div class="hint">Each column is one 0.625 m slice, and each block in it is one chevron layer (one stacker pass). Block height is tonnes. Hover for details, and click a slice to see its cross-section. Playback runs 10× slower while the reclaimer digs.</div>
+  </section>
+
+  <div class="row2">
+    <section class="panel" aria-label="Slice cross-section">
+      <h2>Cross-section <span id="xinfo"></span></h2>
+      <canvas id="xsec" height="300"></canvas>
+      <div class="hint">Chevron layers stacked as nested triangles. The reclaimer cuts three benches top first, so each cut blends every layer.</div>
+    </section>
+    <section class="panel" aria-label="Yard figures">
+      <h2>Yard now</h2>
+      <div class="kpis" id="kpis"></div>
+      <div class="legend"><span id="lglo"></span><canvas class="ramp" id="ramp" width="160" height="10"></canvas><span id="lghi"></span>
+        <span style="margin-left:8px"><span class="sw" style="outline:2px solid var(--flag)"></span> fault material / flagged wagon</span></div>
+    </section>
+  </div>
+
+  <section class="panel" aria-label="Train load-out">
+    <h2>Train load-out <span>28 wagons; click one to trace it</span></h2>
+    <canvas id="train" height="92"></canvas>
+    <div id="detail"></div>
+  </section>
+</main>
+<div id="tip" role="status"></div>
+
+<script src="yard_data.js"></script>
+<script>
+(() => {
+  const Y = window.YARD;
+  if (!Y) { document.body.innerHTML = "<p style='padding:24px'>yard_data.js is missing. Run <code>py tools/export_web.py</code>.</p>"; return; }
+  const M = Y.meta, NS = M.slices, NL = M.layers, NB = M.benches;
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const $ = id => document.getElementById(id);
+
+  // ---------------------------------------------------------------- data prep
+  const cells = Array.from({length: NL}, () => new Array(NS).fill(null));
+  for (const c of Y.cells) {
+    let cum = 0; c.cumT = c.pieces.map(p => [p[0], (cum += p[1])]);
+    c.laid0 = c.pieces[0][0]; c.laid1 = c.pieces[c.pieces.length - 1][0];
+    cells[c.k][c.j] = c;
+  }
+  const cut = new Map(Y.reclaimed.map(r => [r.j, r]));          // slice -> reclaim window
+  const wagons = Y.wagons.map((w, i, a) => ({...w, end: i + 1 < a.length ? a[i + 1].m : w.m + M.payload_t / M.reclaim_tph * 60}));
+  const maxCol = Math.max(...Array.from({length: NS}, (_, j) => cells.reduce((s, row) => s + (row[j] ? row[j].t : 0), 0)));
+  const metricKeys = Object.keys(M.metrics);
+
+  const sel = {metric: "Al2O3", slice: 40, wagon: null, fault: false};
+  const msel = $("metric");
+  for (const k of metricKeys) msel.add(new Option(`${M.metrics[k][0]} (${M.metrics[k][1]})`, k, k === sel.metric, k === sel.metric));
+
+  // ---------------------------------------------------------------- colours (same ramp as the Blender demo)
+  function colour(metric, v) {
+    const [, , lo, hi, hib] = M.metrics[metric];
+    let b = Math.min(1, Math.max(0, (v - lo) / (hi - lo))); if (hib) b = 1 - b;
+    const [g, m, r] = M.ramp; const [a, c, f] = b < 0.5 ? [g, m, b * 2] : [m, r, b * 2 - 1];
+    return `rgb(${[0, 1, 2].map(i => Math.round(255 * (a[i] + (c[i] - a[i]) * f))).join(",")})`;
+  }
+  const fmt = (metric, v) => { const d = metric === "P" ? 3 : metric === "Al2O3" ? 2 : metric === "size" ? 1 : metric === "Fe" ? 2 : 2;
+    return `${v.toFixed(d)} ${M.metrics[metric][1]}`; };
+
+  // ---------------------------------------------------------------- state at a minute
+  function laidT(c, t) {             // tonnes of a cell laid by minute t
+    if (!c || t < c.laid0) return 0;
+    let tt = 0; for (const [m, cum] of c.cumT) { if (m <= t) tt = cum; else break; } return tt;
+  }
+  function cutState(j, t) {          // 0 = intact, 0..1 being dug, 1 = gone
+    const r = cut.get(j); if (!r || t < r.m) return 0; if (t >= r.end) return 1; return (t - r.m) / (r.end - r.m);
+  }
+  function stackerAt(t) {
+    if (t >= M.sim_minutes) return {x: 1.02, k: NL - 1, on: false};
+    const k = Math.floor(t / M.pass_min), f = (t - k * M.pass_min) / M.pass_min;
+    return {x: k % 2 === 0 ? f : 1 - f, k, on: true};
+  }
+  function activeCut(t) { for (const r of Y.reclaimed) if (t >= r.m && t < r.end) return r; return null; }
+  function phase(t) {
+    if (t < M.sim_minutes) return `Stacking: layer ${Math.floor(t / M.pass_min) + 1} of ${NL}`;
+    if (t < M.reclaim_start - 2) return "Pile complete";
+    if (t < M.reclaim_start) return "Reclaimer travelling to the face";
+    const r = activeCut(t);
+    if (r) return `Reclaiming slice ${r.j + 1} of ${NS}, bench ${Math.min(NB, Math.floor(cutState(r.j, t) * NB) + 1)} of ${NB}`;
+    return "Reclaim complete, train loaded";
+  }
+  const faultAt = t => M.fault_schedule.find(([a, b]) => t >= a && t < b);
+
+  // ---------------------------------------------------------------- canvas helpers
+  function prep(cv) {
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.height / (cv._dpr || 1);
+    if (!cv._h) cv._h = cv.height;
+    const H = cv._h;
+    if (cv.width !== Math.round(w * dpr) || cv._dpr !== dpr) { cv.width = Math.round(w * dpr); cv.height = Math.round(H * dpr); cv._dpr = dpr; cv.style.height = H + "px"; }
+    const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, H);
+    return [g, w, H];
+  }
+
+  // ---------------------------------------------------------------- feed strip
+  function drawFeed(t) {
+    const [g, w, h] = prep($("feed"));
+    const x = m => 8 + (w - 16) * m / M.end_min;
+    g.fillStyle = css("--muted"); g.font = "11px system-ui";
+    for (const [a, b, , cond] of M.fault_schedule) {
+      g.fillStyle = cond === "PULSING" ? "rgba(209,36,47,.18)" : "rgba(224,164,0,.22)";
+      g.fillRect(x(a), 2, x(b) - x(a), h - 18);
+      g.fillStyle = css("--muted"); g.fillText(`C${M.hero + 1} ${cond.toLowerCase()}`, x(a) + 3, 13);
+    }
+    const dt = M.parcel_t / 3000 * 60;
+    for (const r of Y.records) {
+      if (r.m > t) break;
+      g.fillStyle = colour(sel.metric, r.v[sel.metric]);
+      g.fillRect(x(r.m), 18, Math.max(1, x(r.m + dt) - x(r.m) - 0.5), h - 34);
+    }
+    g.fillStyle = css("--muted");
+    for (let m = 0; m <= M.end_min; m += 20) g.fillText(`${m}`, x(m) - 6, h - 3);
+    g.strokeStyle = css("--ink"); g.lineWidth = 2; g.beginPath(); g.moveTo(x(t), 0); g.lineTo(x(t), h - 14); g.stroke();
+  }
+
+  // ---------------------------------------------------------------- pile long section
+  let pileGeom = null;
+  function drawPile(t) {
+    const cv = $("pile"), [g, w, h] = prep(cv);
+    const L = 28, R = 56, top = 64, base = h - 26, cw = (w - L - R) / NS, sc = (base - top) / maxCol;
+    pileGeom = {L, cw, base, sc};
+    g.fillStyle = css("--sky"); g.fillRect(0, 0, w, base);
+    g.fillStyle = css("--ground"); g.fillRect(0, base, w, h - base);
+    const wSlices = sel.wagon ? new Set(wagons[sel.wagon - 1].slices) : null;
+    let colTop = new Array(NS).fill(base);
+    for (let j = 0; j < NS; j++) {
+      if (wSlices && wSlices.has(j)) { g.fillStyle = "rgba(31,111,235,.18)"; g.fillRect(L + j * cw, top - 10, cw, base - top + 10); }
+      const cs = cutState(j, t); if (cs >= 1) continue;
+      let y = base; const col = [];
+      for (let k = 0; k < NL; k++) { const c = cells[k][j], tt = laidT(c, t); if (tt > 0) col.push([c, tt]); }
+      const total = col.reduce((s, [, tt]) => s + tt, 0);
+      const keepH = total * sc * (cs > 0 ? 1 - Math.min(1, Math.floor(cs * NB) / NB + (cs * NB % 1) / NB) : 1);
+      const x0 = L + j * cw;
+      for (const [c, tt] of col) {
+        let hh = tt * sc; if (base - y + hh > keepH) hh = Math.max(0, keepH - (base - y)); if (hh <= 0) break;
+        g.fillStyle = colour(sel.metric, c.v[sel.metric]);
+        g.fillRect(x0, y - hh, Math.max(1, cw - (cw > 4 ? 0.6 : 0)), hh);
+        if (sel.fault && c.v.fault > 0.001) { g.strokeStyle = css("--flag"); g.lineWidth = 1.2; g.strokeRect(x0 + 0.5, y - hh + 0.5, cw - 1, hh - 1); }
+        y -= hh;
+      }
+      colTop[j] = y;
+    }
+    // layer separators every stacker pass are implicit in the blocks; mark the selected slice
+    const sx = L + sel.slice * cw;
+    g.strokeStyle = css("--sel"); g.lineWidth = 2; g.strokeRect(sx - 1, top - 14, cw + 2, base - top + 14);
+    // axis
+    g.fillStyle = css("--muted"); g.font = "11px system-ui";
+    for (let m = 0; m <= M.length_m; m += 20) { const xx = L + (w - L - R) * m / M.length_m; g.fillText(`${m} m`, xx - 8, h - 8); }
+    g.save(); g.translate(11, (top + base) / 2); g.rotate(-Math.PI / 2); g.fillText("tonnes per slice", -38, 0); g.restore();
+    // stacker
+    const st = stackerAt(t), stx = L + Math.min(1, st.x) * (w - L - R), sty = 22;
+    g.strokeStyle = css("--machine"); g.fillStyle = css("--machine"); g.lineWidth = 3;
+    g.beginPath(); g.moveTo(stx, sty); g.lineTo(stx, 8); g.stroke();
+    g.fillRect(stx - 9, sty, 18, 7);
+    g.font = "600 11px system-ui"; g.fillText("Stacker", st.on ? Math.min(w - 50, stx + 12) : w - 60, st.on ? 16 : 44);
+    if (st.on) {
+      const j = Math.min(NS - 1, Math.floor(st.x * NS)), yt = colTop[j];
+      g.fillStyle = colour(sel.metric, (Y.records.find(r => r.m <= t && t < r.m + 0.5) || Y.records[0]).v[sel.metric]);
+      for (let i = 0; i < 9; i++) { const yy = sty + 8 + ((i / 9 + t * 3) % 1) * (yt - sty - 8); g.beginPath(); g.arc(stx + Math.sin(i * 7) * 2, yy, 2.2, 0, 7); g.fill(); }
+    }
+    // reclaimer
+    const r = activeCut(t);
+    let bx, by;
+    if (r) {
+      const cs = cutState(r.j, t), b = Math.min(NB - 1, Math.floor(cs * NB));
+      let tot = 0; for (let k = 0; k < NL; k++) tot += cells[k][r.j] ? cells[k][r.j].t : 0;
+      bx = L + r.j * cw; by = base - tot * sc * (1 - (b + 0.5) / NB);
+    } else if (t >= M.reclaim_start - 2 && t < M.reclaim_start) {
+      const f = (t - (M.reclaim_start - 2)) / 2; bx = w - R - f * (w - R - L); by = base - maxCol * sc * 0.8;
+    } else { bx = w - 18; by = base - 16; }          // parked past the east end
+    const wr = 13;
+    g.save(); g.translate(bx - wr * 0.6, by); g.rotate(-t * 6);
+    g.strokeStyle = css("--machine"); g.lineWidth = 2.5; g.beginPath(); g.arc(0, 0, wr, 0, 7); g.stroke();
+    for (let i = 0; i < 8; i++) { g.rotate(Math.PI / 4); g.fillStyle = css("--steel"); g.fillRect(wr - 2, -3, 6, 6); }
+    g.restore();
+    const parked = !r && !(t >= M.reclaim_start - 2 && t < M.reclaim_start);
+    const mx = parked ? bx - wr * 0.6 : bx + 60, my = parked ? by - 70 : top - 30;
+    g.strokeStyle = css("--machine"); g.lineWidth = 3; g.beginPath(); g.moveTo(bx - wr * 0.6, by); g.lineTo(mx, my); g.stroke();
+    g.fillStyle = css("--machine"); g.font = "600 11px system-ui";
+    g.fillText("Reclaimer", parked ? w - 64 : Math.min(w - 64, bx + 40), parked ? my - 6 : top - 34);
+    $("secinfo").textContent = phase(t);
+  }
+
+  // ---------------------------------------------------------------- cross-section
+  const TAN = Math.tan(37 * Math.PI / 180);
+  function triArea(H, a, b) { a = Math.min(Math.max(a, 0), H); b = Math.min(Math.max(b, 0), H); if (b <= a || H <= 0) return 0; return 2 * (H / TAN) * ((b - a) - (b * b - a * a) / (2 * H)); }
+  function drawXsec(t) {
+    const [g, w, h] = prep($("xsec")), j = sel.slice;
+    const base = h - 22, maxH = h - 40, scale = maxH / Math.sqrt(maxCol);
+    g.fillStyle = css("--sky"); g.fillRect(0, 0, w, base); g.fillStyle = css("--ground"); g.fillRect(0, base, w, h - base);
+    const cs = cutState(j, t), lay = [];
+    let cum = 0;
+    for (let k = 0; k < NL; k++) { const c = cells[k][j], tt = laidT(c, t); if (tt <= 0) continue; cum += tt; lay.push({c, H: Math.sqrt(cum) * scale}); }
+    const cx = w * 0.42, HT = lay.length ? lay[lay.length - 1].H : 0, half = Hh => Hh / TAN;
+    const fit = Math.min(1, (w * 0.8) / (2 * half(Math.sqrt(maxCol) * scale)));
+    const P = (y, x) => [cx + x * fit, base - y * fit];
+    if (cs >= 1 || !lay.length) {
+      g.fillStyle = css("--muted"); g.font = "13px system-ui";
+      g.fillText(cs >= 1 ? `Slice ${j + 1} has been reclaimed` : `Slice ${j + 1} is empty at minute ${t.toFixed(1)}`, 16, 28);
+    }
+    if (cs < 1) for (let i = lay.length - 1; i >= 0; i--) {
+      const {c, H} = lay[i];
+      g.fillStyle = colour(sel.metric, c.v[sel.metric]);
+      g.beginPath(); g.moveTo(...P(0, -half(H))); g.lineTo(...P(H, 0)); g.lineTo(...P(0, half(H))); g.closePath(); g.fill();
+      if (sel.fault && c.v.fault > 0.001) { g.strokeStyle = css("--flag"); g.lineWidth = 1.5; g.stroke(); }
+    }
+    // benches: area-weighted blend of the layers each one cuts through
+    if (lay.length && cs < 1) {
+      const dug = cs * NB;
+      for (let b = 0; b < NB; b++) {
+        const lo = HT * (NB - 1 - b) / NB, hi = HT * (NB - b) / NB;
+        let ws = 0, acc = 0, prev = 0;
+        for (const {c, H} of lay) { const a = triArea(H, lo, hi) - triArea(prev, lo, hi); prev = H; if (a > 0) { ws += a; acc += a * c.v[sel.metric]; } }
+        const val = ws ? acc / ws : 0, gone = Math.min(1, Math.max(0, dug - b));
+        if (gone > 0) {      // removed part of this bench (the wheel slews across it)
+          g.fillStyle = css("--sky");
+          const wl = half(HT - lo), wh = half(HT - hi), xa = -wl + gone * 2 * wl;
+          g.beginPath(); g.moveTo(...P(lo, -wl - 1)); g.lineTo(...P(lo, Math.min(xa, wl + 1))); g.lineTo(...P(hi, Math.min(Math.max(xa, -wh), wh + 1)));
+          g.lineTo(...P(hi, -wh - 1)); g.closePath(); g.fill();
+        }
+        g.setLineDash([4, 3]); g.strokeStyle = css("--ink"); g.lineWidth = 1;
+        const [xa1, ya1] = P(lo, -half(HT - lo)), [xb1] = P(lo, half(HT - lo));
+        if (b < NB - 1) { g.beginPath(); g.moveTo(xa1, ya1); g.lineTo(xb1, ya1); g.stroke(); }
+        g.setLineDash([]);
+        const [, yb] = P((lo + hi) / 2, 0), sxw = w - 110;
+        g.fillStyle = gone >= 1 ? css("--line") : colour(sel.metric, val); g.fillRect(sxw, yb - 9, 16, 16);
+        g.fillStyle = css("--ink"); g.font = "12px system-ui";
+        g.fillText(`Bench ${b + 1}`, sxw + 22, yb + 3);
+        g.fillStyle = css("--muted");
+        g.fillText(gone >= 1 ? "dug" : gone > 0 ? "digging" : fmt(sel.metric, val), sxw + 22, yb + 17);
+      }
+    }
+    $("xinfo").textContent = `slice ${j + 1} of ${NS} · ${(j * M.length_m / NS).toFixed(1)}–${((j + 1) * M.length_m / NS).toFixed(1)} m · ${cum.toFixed(1)} t in ${lay.length} layers`;
+  }
+
+  // ---------------------------------------------------------------- train
+  let trainGeom = null;
+  function drawTrain(t) {
+    const [g, w, h] = prep($("train")), n = wagons.length, gap = 3, ww = (w - 8 - gap * (n - 1)) / n, top = 20, wh = h - 40;
+    trainGeom = {ww, gap};
+    g.fillStyle = css("--muted"); g.font = "11px system-ui";
+    wagons.forEach((wg, i) => {
+      const x = 4 + i * (ww + gap), f = Math.min(1, Math.max(0, (t - wg.m) / (wg.end - wg.m)));
+      g.strokeStyle = css("--steel"); g.lineWidth = 1; g.strokeRect(x + 0.5, top + 0.5, ww - 1, wh);
+      if (f > 0) { g.fillStyle = colour(sel.metric, wg.v[sel.metric]); g.fillRect(x + 1, top + wh * (1 - f) + 0.5, ww - 2, wh * f); }
+      if (wg.flag && f >= 1) { g.strokeStyle = css("--flag"); g.lineWidth = 2.5; g.strokeRect(x + 1, top + 1, ww - 2, wh - 1); }
+      if (sel.wagon === wg.i) { g.strokeStyle = css("--sel"); g.lineWidth = 2; g.strokeRect(x - 1, top - 3, ww + 2, wh + 6); }
+      g.fillStyle = css("--steel"); g.beginPath(); g.arc(x + ww * 0.25, top + wh + 6, 3, 0, 7); g.arc(x + ww * 0.75, top + wh + 6, 3, 0, 7); g.fill();
+      if (ww > 18 || i % 2 === 0) { g.fillStyle = css("--muted"); g.fillText(String(wg.i), x + ww / 2 - (wg.i > 9 ? 6 : 3), top - 6); }
+    });
+  }
+
+  // ---------------------------------------------------------------- KPIs and details
+  const fsd = (m, v) => `${v.toFixed(m === "P" ? 4 : 3)} ${M.metrics[m][1]}`;
+  function sd(a) { if (a.length < 2) return 0; const m = a.reduce((s, v) => s + v, 0) / a.length; return Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / a.length); }
+  function kpis(t) {
+    let stacked = 0; for (const row of cells) for (const c of row) stacked += laidT(c, t);
+    let rec = 0; for (const r of Y.reclaimed) rec += r.t * Math.min(1, Math.max(0, (t - r.m) / (r.end - r.m)));
+    const loaded = wagons.filter(wg => t >= wg.end), flagged = loaded.filter(wg => wg.flag);
+    const m = sel.metric, stk = Y.records.filter(r => r.m <= t).map(r => r.v[m]);
+    const rc = Y.reclaimed.filter(r => r.end <= t).map(r => r.v[m]), wv = loaded.map(wg => wg.v[m]);
+    const f = faultAt(Math.min(t, M.sim_minutes - 0.01));
+    const tile = (k, v, s) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+    $("kpis").innerHTML =
+      tile("On the pile", `${Math.max(0, Math.round(stacked - rec)).toLocaleString()} t`, `${Math.round(stacked).toLocaleString()} t stacked`) +
+      tile("Reclaimed", `${Math.round(rec).toLocaleString()} t`, `${Y.reclaimed.filter(r => r.end <= t).length} of ${NS} slices`) +
+      tile("Wagons loaded", `${loaded.length} / ${wagons.length}`, flagged.length ? `<span class="flagtxt">${flagged.length} flagged</span>` : "none flagged") +
+      tile(`${M.metrics[m][0]} variability (SD)`, wv.length ? fsd(m, sd(wv)) : rc.length ? fsd(m, sd(rc)) : fsd(m, sd(stk)),
+        `stacked ${fsd(m, sd(stk))} → reclaimed ${rc.length ? fsd(m, sd(rc)) : "–"} → wagons ${wv.length ? fsd(m, sd(wv)) : "–"}`) +
+      tile("Cyclone C" + (M.hero + 1), t < M.sim_minutes && f ? `<span class="flagtxt">${f[3]}</span>` : "Normal", t < M.sim_minutes ? "feeding the stacker now" : "stacking finished");
+  }
+  function legend() {
+    const g = $("ramp").getContext("2d"), [, unit, lo, hi, hib] = M.metrics[sel.metric];
+    for (let i = 0; i < 160; i++) { g.fillStyle = colour(sel.metric, lo + (hi - lo) * i / 159); g.fillRect(i, 0, 1, 10); }
+    $("lglo").textContent = `${lo} ${unit}`; $("lghi").textContent = `${hi} ${unit}`;
+    $("lglo").title = hib ? "higher is better" : "lower is better";
+  }
+  function detail() {
+    const d = $("detail");
+    if (!sel.wagon) { d.innerHTML = `<div class="hint">A wagon is flagged when more than 0.5% of its tonnes came through a pulsing cyclone.</div>`; return; }
+    const wg = wagons[sel.wagon - 1], m = sel.metric;
+    const sl = wg.slices, rng = `${sl[0] + 1}–${sl[sl.length - 1] + 1}`;
+    const tr = wg.trace.map(([mm, tt, bad]) => `<tr><td>min ${mm.toFixed(1)}</td><td>${tt.toFixed(2)} t</td><td>${bad.join(", ")}</td></tr>`).join("");
+    d.innerHTML = `<b>Wagon ${wg.i}</b> · ${wg.t.toFixed(0)} t · ${M.metrics[m][0]} ${fmt(m, wg.v[m])} · from pile slices ${rng} (highlighted above) · ` +
+      (wg.flag ? `<span class="flagtxt">flagged: ${wg.fault_t.toFixed(1)} t made during a pulsing fault</span>` : "not flagged") +
+      (tr ? `<table><tr><td class="hint">product minute</td><td class="hint">fault tonnes</td><td class="hint">cyclone state</td></tr>${tr}</table>` : `<div class="hint">No tonnes from a faulted cyclone.</div>`);
+  }
+
+  // ---------------------------------------------------------------- tooltip and picking
+  const tip = $("tip");
+  function showTip(e, html) { tip.innerHTML = html; tip.style.display = "block";
+    const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8), y = Math.min(e.clientY + 14, innerHeight - tip.offsetHeight - 8);
+    tip.style.left = x + "px"; tip.style.top = y + "px"; }
+  function pileHit(e) {
+    if (!pileGeom) return null;
+    const r = $("pile").getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    const j = Math.floor((x - pileGeom.L) / pileGeom.cw); if (j < 0 || j >= NS) return null;
+    let yy = pileGeom.base, k = -1;
+    for (let kk = 0; kk < NL; kk++) { const tt = laidT(cells[kk][j], T); if (tt <= 0) continue; const hh = tt * pileGeom.sc; if (y <= yy && y > yy - hh) { k = kk; break; } yy -= hh; }
+    return {j, k};
+  }
+  $("pile").addEventListener("mousemove", e => {
+    const hit = pileHit(e); if (!hit || hit.k < 0 || cutState(hit.j, T) >= 1) { tip.style.display = "none"; return; }
+    const c = cells[hit.k][hit.j], tt = laidT(c, T), mins = [...new Set(c.pieces.map(p => p[2]))].filter(v => v != null);
+    showTip(e, `<b>Slice ${hit.j + 1}, layer ${hit.k + 1}</b><br>${tt.toFixed(1)} t laid at minute ${c.laid0.toFixed(1)}` +
+      `<br>from product minutes ${Math.min(...mins).toFixed(1)}–${Math.max(...mins).toFixed(1)}` +
+      metricKeys.map(m => `<br>${M.metrics[m][0]} ${fmt(m, c.v[m])}`).join("") +
+      (c.v.fault > 0.001 ? `<br><span class="flagtxt">${(c.v.fault * 100).toFixed(0)}% made during a cyclone fault</span>` : ""));
+  });
+  $("pile").addEventListener("mouseleave", () => tip.style.display = "none");
+  $("pile").addEventListener("click", e => { const hit = pileHit(e); if (hit) { sel.slice = hit.j; draw(); } });
+  $("train").addEventListener("click", e => {
+    const r = $("train").getBoundingClientRect(), i = Math.floor((e.clientX - r.left - 4) / (trainGeom.ww + trainGeom.gap));
+    if (i >= 0 && i < wagons.length) { sel.wagon = sel.wagon === i + 1 ? null : i + 1; detail(); draw(); }
+  });
+  $("train").addEventListener("mousemove", e => {
+    const r = $("train").getBoundingClientRect(), i = Math.floor((e.clientX - r.left - 4) / (trainGeom.ww + trainGeom.gap));
+    const wg = wagons[i]; if (!wg) { tip.style.display = "none"; return; }
+    const f = Math.min(1, Math.max(0, (T - wg.m) / (wg.end - wg.m)));
+    showTip(e, `<b>Wagon ${wg.i}</b> · ${(f * 100).toFixed(0)}% loaded<br>${metricKeys.map(m => `${M.metrics[m][0]} ${fmt(m, wg.v[m])}`).join("<br>")}` +
+      (wg.flag ? `<br><span class="flagtxt">flagged</span>` : ""));
+  });
+  $("train").addEventListener("mouseleave", () => tip.style.display = "none");
+
+  // ---------------------------------------------------------------- time and controls
+  let T = 0, playing = false, last = 0;
+  const slider = $("time");
+  function setT(t) { T = Math.min(M.end_min, Math.max(0, t)); slider.value = T; draw(); }
+  function draw() {
+    $("clock").innerHTML = `<b>Minute ${T.toFixed(1)}</b> · ${phase(T)}`;
+    // follow the action: the slice under the reclaimer, else the stacker's slice
+    if (playing) { const r = activeCut(T); if (r) sel.slice = r.j; else if (T < M.sim_minutes) sel.slice = Math.min(NS - 1, Math.floor(stackerAt(T).x * NS)); }
+    drawFeed(T); drawPile(T); drawXsec(T); drawTrain(T); kpis(T);
+  }
+  function loop(ts) {
+    if (!playing) return;
+    const dt = last ? (ts - last) / 1000 : 0; last = ts;
+    // slow down through the reclaim so each bench pass is visible
+    const k = activeCut(T) ? 0.1 : 1;
+    setT(T + dt * parseFloat($("speed").value) * k);
+    if (T >= M.end_min) { togglePlay(false); return; }
+    requestAnimationFrame(loop);
+  }
+  function togglePlay(on) {
+    playing = on ?? !playing; last = 0;
+    $("play").textContent = playing ? "❚❚ Pause" : "▶ Play";
+    if (playing) { if (T >= M.end_min) setT(0); requestAnimationFrame(loop); }
+  }
+  $("play").addEventListener("click", () => togglePlay());
+  slider.addEventListener("input", () => setT(parseFloat(slider.value)));
+  msel.addEventListener("change", () => { sel.metric = msel.value; legend(); detail(); draw(); });
+  $("fault").addEventListener("change", e => { sel.fault = e.target.checked; draw(); });
+  document.querySelectorAll("[data-jump]").forEach(b => b.addEventListener("click", () => setT(parseFloat(b.dataset.jump))));
+  document.addEventListener("keydown", e => {
+    if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT" && e.target.type !== "range") return;
+    if (e.code === "Space") { e.preventDefault(); togglePlay(); }
+    if (e.code === "ArrowRight" && e.target !== slider) setT(T + 0.5);
+    if (e.code === "ArrowLeft" && e.target !== slider) setT(T - 0.5);
+  });
+  new ResizeObserver(() => draw()).observe(document.querySelector("main"));
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { legend(); draw(); });
+  slider.max = M.end_min;
+  // deep links: stockyard.html#t=62&metric=Al2O3&fault=1&slice=40&wagon=5&play=1
+  const q = new URLSearchParams(location.hash.slice(1));
+  if (q.has("metric") && M.metrics[q.get("metric")]) { sel.metric = q.get("metric"); msel.value = sel.metric; }
+  if (q.get("fault") === "1") { sel.fault = true; $("fault").checked = true; }
+  if (q.has("slice")) sel.slice = Math.min(NS - 1, Math.max(0, parseInt(q.get("slice"), 10) - 1));
+  if (q.has("wagon")) sel.wagon = Math.min(wagons.length, Math.max(1, parseInt(q.get("wagon"), 10)));
+  legend(); detail(); setT(parseFloat(q.get("t")) || 0);
+  if (q.get("play") === "1") togglePlay(true);
+})();
+</script>
+</body>
+</html>

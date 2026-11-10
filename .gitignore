@@ -1,0 +1,8 @@
+build/
+*.blend1
+__pycache__/
+.pytest_cache/
+renders/*.png
+renders/clip/
+*.mp4
+renders/backup/

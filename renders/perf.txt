@@ -1,0 +1,4 @@
+MATERIAL    31.3 fps  viewport 1570x907
+RENDERED    33.9 fps  viewport 1570x907
+SOLID       45.1 fps  viewport 1570x907
+python on_frame 2.64 ms/frame
